@@ -5,6 +5,7 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import { ChatGroq } from "@langchain/groq";
 import {
   Annotation,
+  MemorySaver,
   MessagesAnnotation,
   StateGraph,
 } from "@langchain/langgraph";
@@ -67,12 +68,17 @@ const tool = new TavilySearch({
   // excludeDomains: [],
 });
 
+const memory = new MemorySaver();
+
+const tools = [tool];
+const toolNode = new ToolNode(tools);
+
 const llm_groq = new ChatGroq({
   model: "llama-3.1-8b-instant",
   temperature: 0,
   maxRetries: 2,
   maxTokens: 50,
-}).bindTools([tool]);
+}).bindTools(tools);
 
 //----------------------LangGraph-------------------------------------
 
@@ -80,9 +86,6 @@ const State = Annotation.Root({
   prompt: Annotation,
   aiMsg: Annotation,
 });
-
-const tools = [tool];
-const toolNode = new ToolNode(tools);
 
 const callLLM = async (State) => {
   console.log("State: ", State);
@@ -93,7 +96,7 @@ const callLLM = async (State) => {
       "You are a persional AI assistant. Your name is manthan madarchod. If you don't know answer, then don't give wrong one.",
     ],
     // ["human", State.messages[0].content],
-    ...State.messages
+    ...State.messages,
   ]);
   return { messages: [response] };
 };
@@ -114,7 +117,7 @@ const graph = new StateGraph(MessagesAnnotation)
   // .addEdge("agent", "__end__")
   .addEdge("tools", "agent")
   .addConditionalEdges("agent", shouldContinue)
-  .compile();
+  .compile({ checkpointer: memory });
 
 //------------------------------------------------------------------------
 
@@ -140,9 +143,12 @@ app.post("/groq", async (req, res) => {
   // ]);
   // return res.status(200).json({ message: response.content });
 
-  const response = await graph.invoke({
-    messages: [{ role: "user", content: inp }],
-  });
+  const response = await graph.invoke(
+    {
+      messages: [{ role: "user", content: inp }],
+    },
+    { configurable: { thread_id: "user123" } },
+  );
   console.log(response);
 
   return res
