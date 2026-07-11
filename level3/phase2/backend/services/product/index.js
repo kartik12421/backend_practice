@@ -1,0 +1,18 @@
+import express from "express";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const port = process.env.PORT || 3000;
+
+const app = express();
+
+app.use(express.json());
+
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "hello from product service" });
+});
+
+app.listen(port, () => {
+  console.log(`server start for level 3 phase 2......Product service... at port ${port}`);
+});
