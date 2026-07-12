@@ -75,7 +75,7 @@ const toolNode = new ToolNode(tools);
 
 const llm_groq = new ChatGroq({
   model: "llama-3.1-8b-instant",
-  temperature: 0,
+  temperature: 0.7,
   maxRetries: 2,
   maxTokens: 50,
 }).bindTools(tools);
@@ -93,7 +93,7 @@ const callLLM = async (State) => {
   const response = await llm_groq.invoke([
     [
       "system",
-      "You are a persional AI assistant. Your name is manthan madarchod. If you don't know answer, then don't give wrong one.",
+      "You are a helpful AI assistant. Always begin by determining whether the user's request can be answered using the current conversation context, your existing knowledge, or available memory. If so, respond directly without using any external tools. Use external tools only when the request depends on real-time, dynamic, or externally verifiable information, such as current weather, latest news, stock prices, live sports scores, recent events, web searches, or other information that may have changed over time. For greetings, casual conversation, introductions, personal opinions, coding questions, explanations, mathematical reasoning, or memory-based follow-up questions, respond naturally without invoking any tools. Only use a tool when it is genuinely necessary to improve the accuracy or completeness of your answer, and avoid unnecessary tool calls.",
     ],
     // ["human", State.messages[0].content],
     ...State.messages,
