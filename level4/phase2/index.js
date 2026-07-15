@@ -7,6 +7,7 @@ import { PDFParse } from "pdf-parse";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { TaskType } from "@google/generative-ai";
+import { QdrantVectorStore } from "@langchain/qdrant";
 
 dotenv.config();
 
@@ -24,6 +25,18 @@ const llm_groq = new ChatGroq({
   maxTokens: 50,
 });
 
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  model: "gemini-embedding-001", // 768 dimensions
+  taskType: TaskType.RETRIEVAL_DOCUMENT,
+  title: "Document title",
+});
+
+const vectorStore = await QdrantVectorStore.fromExistingCollection(embeddings, {
+  url: process.env.QDRANT_URL,
+  collectionName: "grocery store",
+});
+
+
 const upload = async () => {
   const pdfPath = "./grocery.pdf";
   const buffer = fs.readFileSync(pdfPath);
@@ -36,14 +49,10 @@ const upload = async () => {
     chunkOverlap: 100,
   });
   const docs = await splitter.createDocuments([text]);
+  await vectorStore.addDocuments(docs);
 };
 upload();
 
-const embeddings = new GoogleGenerativeAIEmbeddings({
-  model: "gemini-embedding-001", // 768 dimensions
-  taskType: TaskType.RETRIEVAL_DOCUMENT,
-  title: "Document title",
-});
 
 app.post("/groq", async (req, res) => {
   const { inp } = req.body;
