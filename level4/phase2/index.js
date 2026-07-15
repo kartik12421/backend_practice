@@ -5,6 +5,8 @@ import { ChatGroq } from "@langchain/groq";
 import fs from "fs";
 import { PDFParse } from "pdf-parse";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
+import { TaskType } from "@google/generative-ai";
 
 dotenv.config();
 
@@ -37,11 +39,17 @@ const upload = async () => {
 };
 upload();
 
+const embeddings = new GoogleGenerativeAIEmbeddings({
+  model: "gemini-embedding-001", // 768 dimensions
+  taskType: TaskType.RETRIEVAL_DOCUMENT,
+  title: "Document title",
+});
+
 app.post("/groq", async (req, res) => {
   const { inp } = req.body;
 
   const response = await llm_groq.invoke([{ role: "user", content: inp }]);
-  console.log(response);
+  // console.log(response);
 
   return res.status(200).json({ aiMsg: response.content });
 });
