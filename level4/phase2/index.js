@@ -14,6 +14,11 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+const CHUNK_SIZE = 1200;
+const CHUNK_OVERLAP = 150;
+const RETRIEVAL_LIMIT = 3;
+const MAX_CONTEXT_CHARS = 3000;
+
 app.get("/", (req, res) => {
   return res.json({ messsage: "hello from level 4" });
 });
@@ -36,7 +41,6 @@ const vectorStore = await QdrantVectorStore.fromExistingCollection(embeddings, {
   collectionName: "grocery store",
 });
 
-
 const upload = async () => {
   const pdfPath = "./grocery.pdf";
   const buffer = fs.readFileSync(pdfPath);
@@ -45,22 +49,54 @@ const upload = async () => {
   const result = await pdfResult.getText();
   const text = result.text;
   const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 5000,
-    chunkOverlap: 100,
+    chunkSize: CHUNK_SIZE,
+    chunkOverlap: CHUNK_OVERLAP,
   });
   const docs = await splitter.createDocuments([text]);
   await vectorStore.addDocuments(docs);
 };
 upload();
 
-
 app.post("/groq", async (req, res) => {
-  const { inp } = req.body;
+  try {
+    const { inp } = req.body;
 
-  const response = await llm_groq.invoke([{ role: "user", content: inp }]);
-  // console.log(response);
+    if (!inp?.trim()) {
+      return res.status(400).json({ error: "inp is required" });
+    }
 
-  return res.status(200).json({ aiMsg: response.content });
+    const docs = await vectorStore.similaritySearch(inp, RETRIEVAL_LIMIT);
+
+    const rawContext = docs.map((d) => d.pageContent.trim()).join("\n\n");
+    const context = rawContext.slice(0, MAX_CONTEXT_CHARS);
+
+    const response = await llm_groq.invoke([
+      {
+        role: "system",
+        content: `You are a RAG AI assistant.
+
+Strict Rules:
+1. Answer only from the provided context.
+2. Do not use outside knowledge.
+3. If the answer is not in the context, say exactly: "I don't know from uploaded data."
+4. Keep the answer concise.
+5. Context is about a grocery store having two type of data - Grocery items and its price respectively.
+6. If user asking about benefits of any perticular item, or to compare between two items, do it through your own knowledge.
+7. If user is asking for sorting grocery according to price, do it. You can also use your own intelligence to read and understand the data.
+
+Context:
+${context}`,
+      },
+      { role: "user", content: inp },
+    ]);
+
+    return res.status(200).json({ aiMsg: response.content });
+  } catch (error) {
+    console.error("Groq request failed:", error);
+    return res.status(500).json({
+      error: "Failed to generate response. Try a shorter question or smaller context.",
+    });
+  }
 });
 
 //------------------------------------------------------------------------------
